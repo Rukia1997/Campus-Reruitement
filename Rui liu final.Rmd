@@ -1,0 +1,279 @@
+---
+  title: "Case Study 3 -- Machine Learning (Logistic Regression)"
+author: "Rui Liu (DS 501 - Introduction to Data Science)"
+output:
+  html_document:
+  toc: yes
+pdf_document:
+  toc: yes
+---
+
+### Introduction
+  In this case study, I will use the dataset "Campus Recruitment -- Academic and Employability Factors influencing placement" from kaggle to analyze and predict the placement status of a student using Logistic Regression. The analysis will be divided into some different parts according to the data science project lifecycle and I will explain more details in each part.
+  
+
+### Discovery 
+1. Background
+Campus recruitment is a strategy for sourcing, engaging and hiring young talent for internship and entry-level positions. College recruiting is typically a tactic for medium- to large-sized companies with high-volume recruiting needs, but can range from small efforts (like working with university career centers to source potential candidates) to large-scale operations (like visiting a wide array of colleges and attending recruiting events throughout the spring and fall semester). Campus recruitment often involves working with university career services centers and attending career fairs to meet in-person with college students and recent graduates.
+
+2. Data Introduction and Goal Explanation
+Our dataset revolves around the placement season of a Business School. Where it has various factors on candidates getting hired such as work experience,exam percentage and so on. Finally it contains the status of recruitment and remuneration details.
+There are three primary goals：
+（1）Do a exploratory analysis of the Recruitment dataset
+（2）Do an visualization analysis of the Recruitment dataset
+（3）Prediction: To predict whether a student got placed or not using logistic
+regression.
+
+
+### Data Preparation
+```{r}
+#Loading the single csv file to a variable named 'placementData'
+library(tidyverse)
+placement =read_csv("/cloud/project/Rukia/datasets_596958_1073629_Placement_Data_Full_Class.csv")
+head(placement)
+```
+
+Data Explanation:
+We have Gender and Educational qualification data
+We have all the educational performance(score) data
+We have the status of placement and salary details
+We can expect null values in salary as candidates who weren't placed would have no salary
+Status of placement is our target variable rest of them are independent variable except salary
+
+```{r}
+str(placement)
+```
+
+We have 215 candidate details and there are mixed datatypes in each column. We have few missing values in the salary column as expected since those are the people who didn't get hired.
+Also, we could see that we have 1 integer,6 float and 8 character datatypes in our dataset.
+
+```{r}
+#Find out the Null Number in the dataset
+which(is.na(placement$salary))
+placement[is.na(placement)] = 0
+```
+There are 67 null values in our data, which means 67 unhired candidates.
+We can't drop these values as this will provide a valuable information on why candidates failed to get hired.
+We can't impute it with mean/median values and it will go against the context of this dataset and it will show unhired candidates got salary.
+Our best way to deal with these null values is to impute it with '0' which shows they don't have any income. Thus, I replace NA with 0 in the new dataset.
+
+```{r}
+# Drop unwanted features
+placementData = placement[ -c(1,4,6) ]
+placementData
+```
+We have dropped serial number as we have index as default and we have dropped the boards of school education as I believe it doesn't matter for recruitment.
+
+### Data Visualization
+```{r}
+#filter out 0 as data with 0 values have no placement yet
+dataVis = filter(placementData, salary != 0) 
+
+options(scipen=999)
+
+ggplot(dataVis, aes(salary, gender)) + geom_boxplot()
+```
+
+```{r}
+library(scales)
+ggplot(dataVis, aes(gender)) + geom_bar()
+```
+An interesting topic that will always captured people’s attention, is the difference in salary between the gender. And there goes my first propose question for my visualization analysis - What is the difference in salary between the male and female. And the best visualization to aid my analysis is by using the Boxplot diagram.
+
+A boxplot is a standardized way of displaying the distribution of data based on a five number summary (“minimum”, first quartile (Q1), median, third quartile (Q3), and “maximum”). It can tell you about your outliers and what their values are. It can also tell you if your data is symmetrical, how tightly your data is grouped, and if and how your data is skewed. 
+
+Firstly,i have filter salary that are > 0 as those are student that have no placement thus, having 0 as their salary’s indication. Then, options(scipen = 999) helps me to replace the scientific notation to values in the bloxplot diagram. Finally, utilize ggplot to create the following charts.
+
+From the boxplot, we could see that female have a large range of salary while male have a small range of salary. Also, female just have one outliner while male have many outliners. It means that male are more likely to get a high-salary work comparing with female from this dataset.To be more specific, the boxplot diagram shows that more male student are having high salary - above third quater and dipicts many outliers situation. Salary are from 400 - 800k. Whereas, there is only one female student with 650k salary.
+
+The gender ratio in the dataset is about 1 (female): 2(male). The similarities of in the gender were that they have bigger portion of student have salary between median - third quater, than first quarter - median. And female student has lower median as compare to male student.
+
+```{r}
+# A quick overview of all the categorical data Status - student with and w/o placement WorkExp - student with and w/o work experience DegreeType - distribution of student degree type MbaSpecialization - distribution of student mba specialization SecBoardOfEducation - no. belong to central/others HigherSecBoardofEducation - no. belong to central/others
+
+# student status
+ggplot(placementData, aes(status)) + geom_bar(fill = "red", color = "white")
+# student work experience 
+ggplot(placementData, aes(workex)) + geom_bar(fill = "orange", color = "white")
+# student degree types
+ggplot(placementData, aes(degree_t)) + geom_bar(fill = "yellow", color = "white")
+# student MBA specilisation
+ggplot(placementData, aes(specialisation)) + geom_bar(fill = "green", color = "white")
+```
+Frome these diagram, we could see that there are more placed students than not placed students. Also, most students don't have work experience.Their degree types focus on communication and management while some students major in science and technique. The number of students whose specialisation is mkt&Fin is almost the same as whose specialisation is Mkt&HR.
+
+```{r}
+#A quick overview of the categorical data vs status.
+# student MBA specialisation
+ggplot(placementData, aes(specialisation, fill = status)) + geom_bar() 
+# student degree types
+ggplot(placementData, aes(degree_t, fill = status)) + geom_bar() + facet_wrap(~status)
+# student work experience 
+ggplot(placementData, aes(workex, fill = status)) + geom_bar() + facet_grid(rows = vars(status))
+```
+
+Frome the diagrams, we could see that most students whose specialisation is Mkt&Fin find a job while half of students whose specialisation is Mkt&HR are not placed. Also, the second chart shows that students who major in science and technique, and communication and management are more likely to find a job while half of students who major in other subjects are not place. Finally, we could see that students who have work experience are more likely to be placed and it also shows the importance of work experience when seeking jobs.
+
+### Model Planning and Model building
+After having an overview of students and majors, specialisation and work experience, I want to find out the relations between specialisation and salary which is a popular topic most people are concerned about. Also, I want to predict the probability that students who are placed as a function of other variables using logistic regression.
+
+In this part, I choose the logistic regression model to do the prediction because logistic regression is used to estimate the probability that an event will occur as a function of other variables. Also, it is allowed that input variables can be continuous or discrete. From the dataset, we have the continuous data and also discrete data. Also, we want to predict the students status. Thus, logistic regression model is suitable for this case analysis.
+
+In statistics, the logistic model (or logit model) is used to model the probability of a certain class or event existing such as pass/fail, win/lose, alive/dead or healthy/sick. This can be extended to model several classes of events such as determining whether an image contains a cat, dog, lion, etc. Each object being detected in the image would be assigned a probability between 0 and 1, with a sum of one.
+Logistic regression is a statistical model that in its basic form uses a logistic function to model a binary dependent variable, although many more complex extensions exist. In regression analysis, logistic regression[1] (or logit regression) is estimating the parameters of a logistic model (a form of binary regression). Mathematically, a binary logistic model has a dependent variable with two possible values, such as pass/fail which is represented by an indicator variable, where the two values are labeled "0" and "1". In the logistic model, the log-odds (the logarithm of the odds) for the value labeled "1" is a linear combination of one or more independent variables ("predictors"); the independent variables can each be a binary variable (two classes, coded by an indicator variable) or a continuous variable (any real value). The corresponding probability of the value labeled "1" can vary between 0 (certainly the value "0") and 1 (certainly the value "1"), hence the labeling; the function that converts log-odds to probability is the logistic function, hence the name. The unit of measurement for the log-odds scale is called a logit, from logistic unit, hence the alternative names. 
+The logistic regression could get a set of coefficients that indicate the relative impact of each variables and a linear expression for predicting the log-odds ratio of outcome as a function of drivers. 
+
+```{r, message=FALSE}
+# Loading packages that we will be using
+library(ggplot2)
+library(ROCR)
+library(popbio)
+```
+
+### Plot the conditional denisty plot
+Computes and plots conditional densities describing how the conditional distribution of categorical variables `specialization` and "degree type" changes over a numerical variable `Salary`.
+```{r}
+
+cdplot(factor(specialisation) ~ salary, data=placementData, main="specialisation VS salary", ylab='Salary')
+```
+```{r}
+qplot(salary, ..count.., data=placementData, geom="density", fill=factor(specialisation), position="fill") + 
+  ylab('Probability')+theme(legend.position='bottom')
+```
+
+### Perform the logistic regression
+Function `glm` is used to fit generalized linear models, specified by giving a symbolic description of the linear predictor and a description of the error distribution.
+
+```{r}
+placementLogreg = glm(as.factor(specialisation) ~ ., data=placementData, family=binomial(link="logit"))
+summary(placementLogreg)
+```
+
+### Generate confidence intervals for regression coefficients
+```{r}
+confint(placementLogreg)
+```
+
+### Split the data as Training and Test sets
+```{r}
+library(dplyr)
+placementData = placementData %>%
+     mutate(specialisation = ifelse(specialisation == "Mkt&HR",0,1))
+head(placementData)
+library(caret)
+set.seed(215)
+spliteplacement = createDataPartition(placementData$salary, p = 0.8, 
+                                  list = FALSE, 
+                                  times = 1)
+head(spliteplacement)
+trainplacement = placementData[spliteplacement,]
+head(trainplacement)
+testplacement = placementData[!row.names(placementData) %in% row.names(trainplacement),]
+head(testplacement)
+```
+
+### Apply Logistic Regression on Training set
+```{r}
+trainplacementLR = glm(as.factor(specialisation) ~ ., data=trainplacement, family=binomial(link="logit"))
+summary(trainplacementLR)
+```
+
+### Predict on Test data set
+```{r}
+testplacement$Predicted = round(predict(trainplacementLR , testplacement[,1:12], type="response"), 2)
+head(testplacement)
+
+```
+
+### Visualization of Logistic Regression results
+* `popbio` package
+```{r}
+library(popbio)
+plot(trainplacement$salary, as.factor(trainplacement$specialisation), xlab="Salary", ylab="P(specialisation)")
+
+trainLR = glm(as.factor(specialisation) ~ salary, data=trainplacement, family=binomial)
+
+curve(predict(trainLR,data.frame(salary=x),type="resp"),add=TRUE)
+
+points(trainplacement$specialisation,fitted(trainLR),pch=20)
+
+```
+
+* `visreg` package
+```{r}
+library(visreg)
+logReg = glm(as.factor(specialisation) ~ ., data=trainplacement, family=binomial)
+visreg::visreg(logReg, "salary", scale="response", partial=FALSE, xlab="Salary", ylab="P(specifilisation)", rug=2)
+```
+
+### Model evaluation - Receiver Operating Characteristic (ROC) Curve
+Every classifier evaluation using ROCR starts with creating a prediction object. This function is used to transform the input data into a standardized format.
+
+```{r}
+pred = predict(trainplacementLR, testplacement[,1:12], type="response")
+pObject = ROCR::prediction(pred, testplacement$specialisation)
+```
+
+All kinds of predictor evaluations are performed using `performance` function
+
+```{r}
+rocObj = ROCR::performance(pObject, measure="tpr", x.measure="fpr")
+aucObj = ROCR::performance(pObject, measure="auc")  
+plot(rocObj, main = paste("Area under the curve:", round(aucObj@y.values[[1]] ,4))) 
+```
+
+### Random Model 
+```{r}
+trainplacementRandom = trainplacement
+set.seed(173)
+trainplacementRandom$specialisation = sample(c(0,1), replace=T, size=nrow(trainplacement))
+logRegRandom = glm(as.factor(specialisation) ~ ., data=trainplacementRandom, family=binomial)
+
+
+
+rand_pred = predict(logRegRandom, testplacement[,1:12], type="response")
+randObject = ROCR::prediction(rand_pred, testplacement$specialisation )
+rocRandObj = ROCR::performance(randObject, measure="tpr", x.measure="fpr")
+aucRandObj = ROCR::performance(randObject, measure="auc")  
+plot(rocRandObj, main = paste("Area under the curve:", round(aucRandObj@y.values[[1]] ,4))) 
+```
+
+### Assess model fit
+```{r}
+Phat = predict(trainplacementLR,testplacement,type="response")
+head(Phat)
+prop.table(xtabs(~ specialisation, data=testplacement))
+
+thresh = 0.5
+facHat = cut(Phat, breaks=c(-Inf, thresh, Inf), labels=c(0, 1))
+
+cTab   = xtabs(~ specialisation + facHat, data=testplacement)
+addmargins(cTab)
+```
+
+* Correct classification rate
+```{r}
+CCR = sum(diag(cTab)) / sum(cTab)
+CCR
+```
+
+### Updating models
+If you want to modify a model you may consider using the special function `update`
+```{r}
+lrUpdate = update(trainplacementLR, ~ . -Married-specialization_contacts-Cust_years)
+summary(lrUpdate)
+pred = predict(lrUpdate, testplacement[,1:12], type="response")
+pObject = ROCR::prediction(pred, testplacement$specialisation )
+rocObj = ROCR::performance(pObject, measure="tpr", x.measure="fpr")
+aucObj = ROCR::performance(pObject, measure="auc")  
+plot(rocObj, main = paste("Area under the curve:", round(aucObj@y.values[[1]] ,4))) 
+```
+
+###Communication Results
+The logistic regression shows the overall fraction of specialisation. And it returns a score that estimates the probability that students major in Mkt&HR or Mkt&Fin. The graph compares the distribution of students whose major is Mkt&HR and students whose major is Mkt&Fin as a function of the model's predicted probability. It is interesting that the student who majors in Mkt&Fin is more likely to have higher salary than student who majors in Mkt&HR. It shows the importance of choices when you select your major.
+
+After building the model, we have to estimate the model and update it. Area under the curve(AUC) tells us how well the model predicts and we could see that the AUC of our model is 0.7455 which is very closed to ideal AUC=1. It means that our model is good.
+
+From the model planning and building, we could see that logistic regression model has many advantages.The relative impact of each variable on the outcome has a more complicated way than linear regression. Also, it is robust with redundant variables and correlated variables. What's more, it has concise representation with the coefficients and is easy to score data. In addition, it returns good probability estimates of an event and perserves the summary statistics of the training data -- "The probabilities equal the counts".
+
+However, there are also some disadvantages of this model.Firstly, it doesn't handle missing values well. And it assumes that each variables affects the log-odds of the outcome linearly and additively. In addition, the model connot handle variables that affect the outcome in a discontinuous way and doesn't work well with discrete divers that have a lot of distinct.
